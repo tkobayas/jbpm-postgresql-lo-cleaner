@@ -147,7 +147,9 @@ public class PostgreSQLLOCleaner {
 
             while ( rs.next() ) {
                 Object oid = rs.getObject( 1 );
-                if ( oid instanceof Long ) {
+                if ( oid == null) {
+                    System.out.println( "oid = null" ); // ignore
+                } else if ( oid instanceof Long ) {
                     result.add( (Long) oid );
                 } else if ( oid instanceof String ) {
                     result.add( Long.parseLong( (String) oid ) );
