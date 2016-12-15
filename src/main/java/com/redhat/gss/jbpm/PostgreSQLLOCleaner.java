@@ -65,6 +65,7 @@ public class PostgreSQLLOCleaner {
         System.out.println( "finished" );
         System.out.println();
 
+        conn.close();
     }
 
     private static void deleteOrphanedLargeObjects( List<Long> LoidListToDelete ) {
@@ -104,26 +105,34 @@ public class PostgreSQLLOCleaner {
 
     private static void checkPGLargeObjectTable() {
 
-        List<Long> result = runQuery( "select distinct loid from pg_largeobject" );
+        // From PostgreSQL Source Code:
+        // https://doxygen.postgresql.org/vacuumlo_8c_source.html#l00059
+        // It is much faster to query pg_largeobject_metadata.
+        // Assume PostgreSQL version is 9.0 and later
+        // if (PQserverVersion(conn) >= 90000)
+        //     strcat(buf, "SELECT oid AS lo FROM pg_largeobject_metadata");
+        // else
+        //     strcat(buf, "SELECT DISTINCT loid AS lo FROM pg_largeobject");
+        List<Long> result = runQuery( "SELECT oid AS lo FROM pg_largeobject_metadata" );
         pgLoidList = result;
     }
 
     private static void collectActiveLoid() {
         // BLOB
-        collectActiveLoidPerColumn( "select content from content" );
-        collectActiveLoidPerColumn( "select processinstancebytearray from processinstanceinfo" );
-        collectActiveLoidPerColumn( "select requestdata from requestinfo" );
-        collectActiveLoidPerColumn( "select responsedata from requestinfo" );
-        collectActiveLoidPerColumn( "select rulesbytearray from sessioninfo" );
-        collectActiveLoidPerColumn( "select workitembytearray from workiteminfo" );
+        collectActiveLoidPerColumn( "select content from content where content is not null" );
+        collectActiveLoidPerColumn( "select processinstancebytearray from processinstanceinfo where processinstancebytearray is not null" );
+        collectActiveLoidPerColumn( "select requestdata from requestinfo where requestdata is not null" );
+        collectActiveLoidPerColumn( "select responsedata from requestinfo where responsedata is not null" );
+        collectActiveLoidPerColumn( "select rulesbytearray from sessioninfo where rulesbytearray is not null" );
+        collectActiveLoidPerColumn( "select workitembytearray from workiteminfo where workitembytearray is not null" );
 
         // CLOB
-        collectActiveLoidPerColumn( "select expression from booleanexpression" );
-        collectActiveLoidPerColumn( "select body from email_header" );
-        collectActiveLoidPerColumn( "select text from i18ntext" );
-        collectActiveLoidPerColumn( "select text from task_comment" );
-        collectActiveLoidPerColumn( "select qexpression from querydefinitionstore" );
-        collectActiveLoidPerColumn( "select deploymentunit from deploymentstore" );
+        collectActiveLoidPerColumn( "select expression from booleanexpression where expression is not null" );
+        collectActiveLoidPerColumn( "select body from email_header where body is not null" );
+        collectActiveLoidPerColumn( "select text from i18ntext where text is not null" );
+        collectActiveLoidPerColumn( "select text from task_comment where text is not null" );
+        collectActiveLoidPerColumn( "select qexpression from querydefinitionstore where qexpression is not null" );
+        collectActiveLoidPerColumn( "select deploymentunit from deploymentstore where deploymentunit is not null" );
 
     }
 
@@ -147,9 +156,7 @@ public class PostgreSQLLOCleaner {
 
             while ( rs.next() ) {
                 Object oid = rs.getObject( 1 );
-                if ( oid == null) {
-                    System.out.println( "oid = null" ); // ignore
-                } else if ( oid instanceof Long ) {
+                if ( oid instanceof Long ) {
                     result.add( (Long) oid );
                 } else if ( oid instanceof String ) {
                     result.add( Long.parseLong( (String) oid ) );
